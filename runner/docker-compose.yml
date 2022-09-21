@@ -1,0 +1,14 @@
+version: '3.4'
+
+services:
+  cpusdctoolsrunner:
+    image: cpusdctoolsrunner
+    build:
+      context: .
+      dockerfile: ./Dockerfile
+    environment:
+      - SDC_TIMEOUT=300
+      - SDC_ENDPOINT="http://pepega.cs.illinois.edu:5000"
+
+    #extra_hosts:
+    #  - "host.docker.internal:host-gateway"
