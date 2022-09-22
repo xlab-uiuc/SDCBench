@@ -1,5 +1,7 @@
 #!/bin/bash
 
+rm -rf cpu-check
+
 git clone --recursive  https://github.com/google/cpu-check.git
 cd cpu-check
 mkdir build
