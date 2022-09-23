@@ -5,6 +5,9 @@ __pycache__/
 .vscode
 *.pem
 
+runner_client_env/
+runner_server_env/
+
 # C extensions
 *.so
 
