@@ -2,18 +2,24 @@ import eventlet
 #eventlet.monkey_patch(all=True, os=False, select=False, socket=False, thread=False, time=False)
 eventlet.monkey_patch()
 
-import socketio
 import json
 import threading
 import sys
 import select
 import base64
+import argparse
+import cmd2
+
+import socketio
 from tqdm import tqdm
 
+parser = argparse.ArgumentParser(description='Run SDC tools for server')
+parser.add_argument('--endpoint', type=str, default=':5000', help='Connect to endpoint')
+args = parser.parse_args()
+endpoint = args.endpoint
+
 sio = socketio.Server()
-app = socketio.WSGIApp(sio, static_files={
-    '/': {'content_type': 'text/html', 'filename': 'index.html'}
-})
+app = socketio.WSGIApp(sio, {})
 
 sids = set()
 ip_to_sid = {}
@@ -21,6 +27,14 @@ sid_to_ip = {}
 sid_to_progress = {}
 mac_to_sid = {}
 sid_to_mac = {}
+
+class State:
+    def __init__(self):
+        self.cpu_check_timeout = 60 * 15
+        self.dcdiag_timeout = 60 * 15
+        self.silifuzz_timeout = 60 * 60 * 1
+
+state = State()
 
 @sio.event
 def connect(sid, environ):
@@ -31,6 +45,14 @@ def connect(sid, environ):
     sids.add(sid)
     ip_to_sid[address] = sid
     sid_to_ip[sid] = address
+
+    # Set the timeout first
+    j = {
+        'cpu_check': state.cpu_check_timeout,
+        'dcdiag': state.dcdiag_timeout,
+        'silifuzz': state.silifuzz_timeout,
+    }
+    sio.emit('update_timeout_request', j)
 
 @sio.event
 def disconnect(sid):
@@ -115,104 +137,185 @@ def query_progress_response(sid, data):
     final = data['final']
     sid_to_progress[sid] = data
 
+@sio.event
+def update_corpus_response(sid, data):
+    if data['status'] == 'success':
+        print(f'[{sid}] Updated corpus response successfully')
+    elif data['status'] == 'error':
+        print(f'[{sid}] Updated corpus response error {data["error"]}')
+
+@sio.event
+def update_timeout_response(sid, data):
+    if data['status'] == 'success':
+        print(f'[{sid}] Updated timeout response successfully')
+    elif data['status'] == 'error':
+        print(f'[{sid}] Updated timeout response error {data["error"]}')
+
+class Shell(cmd2.Cmd):
+    intro = 'Welcome to SDCBench server'
+    prompt = '(SDCBench)'
+
+    numbers = ['0', '1', '2', '3', '4']
+    alphabet = ['a', 'b', 'c', 'd']
+
+    parser = cmd2.Cmd2ArgumentParser()
+    parser.add_argument("type", choices=['numbers', 'alphabet'])
+    parser.add_argument("value")
+    @cmd2.with_argparser(parser)
+    def do_list(self, args):
+        self.poutput(args.value)
+
+    @cmd2.with_argument_list
+    def do_command(self, args):
+        sio.emit('run_command_request', args)
+
+    @cmd2.with_argument_list
+    def do_command_specific(self, args):
+        if len(args) > 0:
+            mac = args[0]
+            sid = mac_to_sid.get(mac)
+            if sid:
+                sio.emit('run_command_request', args[1:], to=sid)
+            else:
+                print(f'sid for mac {mac} does not exist')
+
+    parser = cmd2.Cmd2ArgumentParser()
+    parser.add_argument('mac')
+    parser.add_argument('filename')
+    @cmd2.with_argparser(parser)
+    def do_transfer_to(self, args):
+        mac = args.mac
+        filename = args.filename
+        try:
+            with open(filename, 'rb') as f:
+                data = f.read()
+                b64_data = base64.b64encode(data)
+                j = {
+                    'filename': filename,
+                    'b64_data': b64_data
+                }
+                sio.emit('transfer_to_request', j)
+        except Exception as e:
+            print(e)
+    
+    parser = cmd2.Cmd2ArgumentParser()
+    parser.add_argument('mac')
+    parser.add_argument('filename')
+    @cmd2.with_argparser(parser)
+    def do_transfer_from(self, args):
+        mac = args.mac
+        filename = args.filename
+        sid = mac_to_sid.get(mac)
+        if sid:
+            filename = args[1]
+            sio.emit('transfer_from_request', {'filename': filename}, to=sid)
+        else:
+            print(f'sid for address {remote_address} does not exist')
+    
+    @cmd2.with_argument_list
+    def do_p(self, args):
+        # Get initial progress
+        sid_to_t = {}
+        def refresh_t():
+            i = 0
+            for sid, p in sid_to_progress.items():
+                ip = sid_to_ip.get(sid)
+                if ip is None:
+                    continue
+                mac = sid_to_mac.get(sid)
+                if mac is None:
+                    continue
+                t = tqdm(range(int(p['final'])), desc=f'[{sid}] [{ip}] [{mac}] Iteration {p["iter"]}: {" ".join(p["command"])}', position=i, leave=False, bar_format='{desc:70}: {percentage:3.0f}%|{bar}{r_bar}')
+                t.update(int(p['current']))
+                sid_to_t[sid] = t
+                i += 1
+        refresh_t()
+                
+        while True:
+            i, o, e = select.select([sys.stdin], [], [], 1)
+            if i:
+                l = sys.stdin.readline().strip()
+                if l == 'q':
+                    print('exited progress')
+                    break
+
+            sio.emit('query_progress_request', {})
+
+            if len(sid_to_t) != len(sid_to_progress):
+                refresh_t()
+
+            for sid, t in sid_to_t.items():
+                p = sid_to_progress.get(sid)
+                if p:
+                    ip = sid_to_ip.get(sid)
+                    if ip is None:
+                        continue
+                    mac = sid_to_mac.get(sid)
+                    if mac is None:
+                        continue
+                    current = int(p['current'])
+                    final = int(p['final'])
+                    t.update(current - t.n)
+                    t.set_description(f'[{sid}] [{ip}] [{mac}] Iteration {p["iter"]}: {" ".join(p["command"])}')
+                    t.clear()
+                    t.refresh()
+            
+    parser = cmd2.Cmd2ArgumentParser()
+    parser.add_argument('filename')
+    @cmd2.with_argparser(parser)
+    def do_update_corpus(self, args):
+        filename = args.filename
+        try:
+            with open(filename, 'rb') as f:
+                data = f.read()
+                b64_data = base64.b64encode(data)
+                j = {
+                    'b64_data': b64_data
+                }
+                sio.emit('update_corpus_request', j)
+        except Exception as e:
+            print(e)
+    
+    parser = cmd2.Cmd2ArgumentParser()
+    parser.add_argument('cpu_check_timeout', type=float)
+    parser.add_argument('dcdiag_timeout', type=float)
+    parser.add_argument('silifuzz_timeout', type=float)
+    @cmd2.with_argparser(parser)
+    def do_update_timeout(self, args):
+        state.cpu_check_timeout = args.cpu_check_timeout
+        state.dcdiag_timeout = args.dcdiag_timeout
+        state.silifuzz_timeout = args.silifuzz_timeout
+        try:
+            j = {
+                'cpu_check': state.cpu_check_timeout,
+                'dcdiag': state.dcdiag_timeout,
+                'silifuzz': state.silifuzz_timeout,
+            }
+            sio.emit('update_timeout_request', j)
+        except Exception as e:
+            print(e)
+
+
 def get_input():
+    s = Shell()
     def raw_input(message):
-        sys.stdout.write(message)
+        #sys.stdout.write(message)
 
         select.select([sys.stdin], [], [])
         return sys.stdin.readline()
     while True:
-        l = raw_input('Input: ')
+        s.preloop()
+        l = raw_input('(SDCBench) ')
         l = l.rstrip()
-        args = l.split(' ')
-        if len(args) >= 1:
-            if args[0] == 'command':
-                sio.emit('run_command_request', args[1:])
-                #for sid in sids:
-                #    print('uhh')
-                #    sio.emit('run_command_request', {'aa': 'abc'}, to=sid)
-            if len(args) > 2:
-                if args[0] == 'command_specific':
-                    mac = args[1]
-                    sid = mac_to_sid.get(mac)
-                    if sid:
-                        sio.emit('run_command_request', args[2:], to=sid)
-                    else:
-                        print(f'sid for mac {mac} does not exist')
-            if len(args) > 1:
-                if args[0] == 'transfer_to':
-                    filename = args[1]
-                    try:
-                        with open(filename, 'rb') as f:
-                            data = f.read()
-                            b64_data = base64.b64encode(data)
-                            j = {
-                                'filename': filename,
-                                'b64_data': b64_data
-                            }
-                            sio.emit('transfer_to_request', j)
-                    except Exception as e:
-                        print(e)
-            if len(args) > 2:
-                if args[0] == 'transfer_from':
-                    remote_address = args[1]
-                    sid = ip_to_sid.get(remote_address)
-                    if sid:
-                        filename = args[2]
-                        sio.emit('transfer_from_request', {'filename': filename}, to=sid)
-                    else:
-                        print(f'sid for address {remote_address} does not exist')
-            if args[0] == 'progress' or args[0] == 'p':
-                # Get initial progress
-                sid_to_t = {}
-                def refresh_t():
-                    i = 0
-                    for sid, p in sid_to_progress.items():
-                        ip = sid_to_ip.get(sid)
-                        if ip is None:
-                            continue
-                        mac = sid_to_mac.get(sid)
-                        if mac is None:
-                            continue
-                        t = tqdm(range(int(p['final'])), desc=f'[{sid}] [{ip}] [{mac}] Iteration {p["iter"]}: {" ".join(p["command"])}', position=i, leave=False, bar_format='{desc:70}: {percentage:3.0f}%|{bar}{r_bar}')
-                        t.update(int(p['current']))
-                        sid_to_t[sid] = t
-                        i += 1
-                refresh_t()
-                        
-                while True:
-                    i, o, e = select.select([sys.stdin], [], [], 1)
-                    if i:
-                        l = sys.stdin.readline().strip()
-                        if l == 'q':
-                            print('exited progress')
-                            break
 
-                    sio.emit('query_progress_request', {})
-
-                    if len(sid_to_t) != len(sid_to_progress):
-                        refresh_t()
-
-                    for sid, t in sid_to_t.items():
-                        p = sid_to_progress.get(sid)
-                        if p:
-                            ip = sid_to_ip.get(sid)
-                            if ip is None:
-                                continue
-                            mac = sid_to_mac.get(sid)
-                            if mac is None:
-                                continue
-                            current = int(p['current'])
-                            final = int(p['final'])
-                            t.update(current - t.n)
-                            t.set_description(f'[{sid}] [{ip}] [{mac}] Iteration {p["iter"]}: {" ".join(p["command"])}')
-                            t.clear()
-                            t.refresh()
-
+        #l = s.tokens_for_completion(l, 0, 0, False)
+        #print(l)
+        s.runcmds_plus_hooks([l])
+        s.postloop()
                 
 if __name__ == '__main__':
     t = threading.Thread(target=get_input)
     t.start()
-    #eventlet.spawn(func=get_input)
-    #eventlet.spawn_after(func=get_input, seconds=1)
-    eventlet.wsgi.server(eventlet.listen(('', 5000)), app)
+    host, port = endpoint.split(':')
+    port = int(port)
+    eventlet.wsgi.server(eventlet.listen((host, port)), app)
