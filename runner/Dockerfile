@@ -48,5 +48,5 @@ ENV SDC_TIMEOUT 300
 ENV SDC_ENDPOINT http://pepega.cs.illinois.edu:5000
 
 # During debugging, this entry point will be overridden. For more information, please refer to https://aka.ms/vscode-docker-python-debug
-CMD ["sh", "-c", "jurigged app.py --timeout=${SDC_TIMEOUT} --endpoint=${SDC_ENDPOINT}"]
+CMD ["sh", "-c", "jurigged app.py --endpoint=${SDC_ENDPOINT}"]
 
