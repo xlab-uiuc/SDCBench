@@ -19,7 +19,7 @@ args = parser.parse_args()
 endpoint = args.endpoint
 
 sio = socketio.Server()
-app = socketio.WSGIApp(sio, {})
+app = socketio.WSGIApp(sio)
 
 sids = set()
 ip_to_sid = {}
@@ -61,10 +61,12 @@ def disconnect(sid):
     print(f'[{sid}] Disconnect from {ip} {mac}')
 
     sids.remove(sid)
-    del ip_to_sid[ip]
+    if ip in ip_to_sid:
+        del ip_to_sid[ip]
     del sid_to_ip[sid]
 
-    del mac_to_sid[mac]
+    if mac in mac_to_sid:
+        del mac_to_sid[mac]
     del sid_to_mac[sid]
 
 @sio.event
