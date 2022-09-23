@@ -65,7 +65,8 @@ if __name__ == '__main__':
                         container_id = items[0]
                         await run_command(f'sudo docker kill {container_id}')
             #run_remote_command_see_output(f'sudo docker run -e SDC_TIMEOUT={timeout} -e SDC_ENDPOINT={endpoint} {docker_image_name}')
-            stdout = await run_command(f'sudo docker run -d -e SDC_TIMEOUT={timeout} -e SDC_ENDPOINT={endpoint} {docker_image_name_stem}')
+            # Run command with no security (hack for silifuzz to work to disable ALSR)
+            stdout = await run_command(f'sudo docker run -d -e SDC_TIMEOUT={timeout} -e SDC_ENDPOINT={endpoint} --cap-add=SYS_PTRACE --security-opt seccomp=unconfined {docker_image_name_stem}')
             return True
         
         interfaces = list(soup.find_all('login'))
