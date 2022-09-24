@@ -304,12 +304,13 @@ class Shell(cmd2.Cmd):
 def generate_silifuzz_corpus_worker():
     while args.generate_silifuzz_corpus:
         silifuzz_corpus_path = 'tools/silifuzz.corpus'
+        silifuzz_corpus_path_xz = f'{silifuzz_corpus_path}.xz'
         silifuzz_num_runs = 100000
         #silifuzz_num_runs = 1
         p = subprocess.Popen(f'python3 tools/silifuzz_tools/generate_silifuzz_corpus.py --num_runs={silifuzz_num_runs} --corpus_output={silifuzz_corpus_path} --j={args.generate_silifuzz_corpus_threads} --corpus_save_dir="../../saved_corpus"', shell=True, cwd=os.getcwd())
         p.communicate()
         try:
-            with open(silifuzz_corpus_path, 'rb') as f:
+            with open(silifuzz_corpus_path_xz, 'rb') as f:
                 data = f.read()
                 b64_data = base64.b64encode(data)
                 j = {
