@@ -9,12 +9,15 @@ import select
 import base64
 import argparse
 import cmd2
+import subprocess
+import os
 
 import socketio
 from tqdm import tqdm
 
 parser = argparse.ArgumentParser(description='Run SDC tools for server')
 parser.add_argument('--endpoint', type=str, default=':5000', help='Connect to endpoint')
+parser.add_argument('--generate_silifuzz_corpus', type=bool, default=True, help='Generate silifuzz corpus')
 args = parser.parse_args()
 endpoint = args.endpoint
 
@@ -297,6 +300,23 @@ class Shell(cmd2.Cmd):
         except Exception as e:
             print(e)
 
+def generate_silifuzz_corpus_worker():
+    while args.generate_silifuzz_corpus:
+        silifuzz_corpus_path = 'tools/silifuzz.corpus.xz'
+        silifuzz_num_runs = 100000
+        p = subprocess.Popen(f'python3 tools/silifuzz_tools/generate_silifuzz_corpus.py --num_runs={silifuzz_num_runs} --corpus_output={silifuzz_corpus_path}', shell=True, cwd=os.getcwd())
+        p.communicate()
+        try:
+            with open(silifuzz_corpus_path, 'rb') as f:
+                data = f.read()
+                b64_data = base64.b64encode(data)
+                j = {
+                    'b64_data': b64_data
+                }
+                sio.emit('update_corpus_request', j)
+        except Exception as e:
+            print(e)
+
 
 def get_input():
     s = Shell()
@@ -317,6 +337,8 @@ def get_input():
                 
 if __name__ == '__main__':
     t = threading.Thread(target=get_input)
+    t.start()
+    t = threading.Thread(target=generate_silifuzz_corpus_worker)
     t.start()
     host, port = endpoint.split(':')
     port = int(port)

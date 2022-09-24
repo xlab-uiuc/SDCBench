@@ -12,9 +12,9 @@ from concurrent.futures import ProcessPoolExecutor
 
 parser = argparse.ArgumentParser(description='Transform centipede fuzz results to a silifuzz corpus')
 parser.add_argument('--fuzzing_results', type=str, help='Fuzzing result files regex (Default: corpus*)', default='corpus.*')
-parser.add_argument('--temp_dir', type=str, help='Temp dir', default='tmp')
+parser.add_argument('--temp_dir', type=str, help='Temp dir', default='tools/tmp')
 parser.add_argument('--bin_dir', type=str, help='Bin dir containing silifuzz build outputs', default='../bazel-bin')
-parser.add_argument('--corpus_output', type=str, help='Path to output corpus', default='tmp/generated.corpus')
+parser.add_argument('--corpus_output', type=str, help='Path to output corpus', default='tools/tmp/generated.corpus')
 args = parser.parse_args()
 
 fuzzing_results = args.fuzzing_results
