@@ -3,7 +3,7 @@
 # TODOs
 
 ### Update runner tool with silifuzz
-* Add way to update corpus on client
+* Add way to update corpus on client - Done
 
 ### Find binaries to look for SDC instructions
 * Compile distributed binaries, disassemble instructions and look for similar mnemonic?
