@@ -305,7 +305,8 @@ def generate_silifuzz_corpus_worker():
     while args.generate_silifuzz_corpus:
         silifuzz_corpus_path = 'tools/silifuzz.corpus.xz'
         silifuzz_num_runs = 100000
-        p = subprocess.Popen(f'python3 tools/silifuzz_tools/generate_silifuzz_corpus.py --num_runs={silifuzz_num_runs} --corpus_output={silifuzz_corpus_path} --j={args.generate_silifuzz_corpus_threads}', shell=True, cwd=os.getcwd())
+        #silifuzz_num_runs = 1
+        p = subprocess.Popen(f'python3 tools/silifuzz_tools/generate_silifuzz_corpus.py --num_runs={silifuzz_num_runs} --corpus_output={silifuzz_corpus_path} --j={args.generate_silifuzz_corpus_threads} --corpus_save_dir="../../saved_corpus"', shell=True, cwd=os.getcwd())
         p.communicate()
         try:
             with open(silifuzz_corpus_path, 'rb') as f:

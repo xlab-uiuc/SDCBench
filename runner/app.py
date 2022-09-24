@@ -13,6 +13,7 @@ import threading
 import time
 import io
 import base64
+import hashlib
 
 import system_info
 
@@ -151,7 +152,16 @@ def run_command(command):
             'command': command.command,
             'exception': str(e),
         }
-    
+    if command == state.silifuzz_command:
+        def get_hash_file(filename):
+            h = hashlib.sha256()
+            b = bytearray(128*1024)
+            mv = memoryview(b)
+            with open(filename, 'rb', buffering=0) as f:
+                while n := f.readinto(mv):
+                    h.update(mv[:n])
+            return h.hexdigest()
+        data['hash'] = get_hash_file(args.silifuzz_corpus)
     #print(data, command.command, state.cpu_check_command.command)
     state.current_command = None
     return data
