@@ -18,6 +18,7 @@ from tqdm import tqdm
 parser = argparse.ArgumentParser(description='Run SDC tools for server')
 parser.add_argument('--endpoint', type=str, default=':5000', help='Connect to endpoint')
 parser.add_argument('--generate_silifuzz_corpus', type=bool, default=True, help='Generate silifuzz corpus')
+parser.add_argument('--generate_silifuzz_corpus_threads', type=int, default=os.cpu_count(), help='Num of generate silifuzz corpus threads')
 args = parser.parse_args()
 endpoint = args.endpoint
 
@@ -304,7 +305,7 @@ def generate_silifuzz_corpus_worker():
     while args.generate_silifuzz_corpus:
         silifuzz_corpus_path = 'tools/silifuzz.corpus.xz'
         silifuzz_num_runs = 100000
-        p = subprocess.Popen(f'python3 tools/silifuzz_tools/generate_silifuzz_corpus.py --num_runs={silifuzz_num_runs} --corpus_output={silifuzz_corpus_path}', shell=True, cwd=os.getcwd())
+        p = subprocess.Popen(f'python3 tools/silifuzz_tools/generate_silifuzz_corpus.py --num_runs={silifuzz_num_runs} --corpus_output={silifuzz_corpus_path} --j={args.generate_silifuzz_corpus_threads}', shell=True, cwd=os.getcwd())
         p.communicate()
         try:
             with open(silifuzz_corpus_path, 'rb') as f:
