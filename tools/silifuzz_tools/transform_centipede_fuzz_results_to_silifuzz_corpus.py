@@ -128,5 +128,6 @@ if __name__ == "__main__":
         f.write(o)
 
     # Write a compressed corpus for orchestrator to use
-    o = subprocess.check_output(f'xz -c {corpus_output} > {corpus_output}.xz', shell=True, stderr=subprocess.PIPE)
+    with open(f'{corpus_output}.xz', 'wb') as f:
+        o = subprocess.run(f'xz -c {corpus_output}', shell=True, stdout=f, stderr=subprocess.PIPE)
 
