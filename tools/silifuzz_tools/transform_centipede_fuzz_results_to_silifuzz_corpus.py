@@ -89,7 +89,8 @@ if __name__ == "__main__":
             while index < len(data):
                 begin = data[index:index+len(PACK_BEGIN_MAGIC)]
                 if begin != PACK_BEGIN_MAGIC:
-                    panic(f'{begin} != {PACK_BEGIN_MAGIC}')
+                    print(f'{begin} != {PACK_BEGIN_MAGIC}')
+                    break
                 index += len(PACK_BEGIN_MAGIC)
 
                 hash_value = data[index:index+HASH_LEN]
@@ -111,7 +112,8 @@ if __name__ == "__main__":
                         print(f'Warning: end bytes [{end}] != {PACK_END_MAGIC} for {file}. Terminating loop early...')
                         break
                     else:
-                        panic(f'{end} != {PACK_END_MAGIC}')
+                        print(f'{end} != {PACK_END_MAGIC}')
+                        break
 
                 index += len(PACK_END_MAGIC)
                 
