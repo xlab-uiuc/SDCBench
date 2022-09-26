@@ -1,0 +1,11 @@
+--- proxies/build_defs.bzl	2022-09-24 23:02:11.492505385 -0500
++++ proxies/build_static_defs.bzl	2022-09-24 22:59:48.573552849 -0500
+@@ -108,7 +108,7 @@
+     executable = True,
+ )
+ 
+-def centipede_fuzz_target(
++def centipede_fuzz_target_static(
+         name,
+         fuzz_target = None,
+         srcs = None,

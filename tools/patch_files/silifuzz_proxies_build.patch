@@ -1,0 +1,19 @@
+--- proxies/BUILD	2022-09-24 23:04:17.703107881 -0500
++++ proxies/BUILD2	2022-09-24 23:04:12.350997597 -0500
+@@ -13,6 +13,7 @@
+ # limitations under the License.
+ 
+ load("@centipede//testing:build_defs.bzl", "centipede_fuzz_target")
++load("build_static_defs.bzl", "centipede_fuzz_target_static")
+ 
+ licenses(["notice"])
+ 
+@@ -42,7 +43,7 @@
+     deps = ["@unicorn//:unicorn_arm64"],
+ )
+ 
+-centipede_fuzz_target(
++centipede_fuzz_target_static(
+     name = "unicorn_x86_64_sancov",
+     srcs = ["unicorn_x86_64_example.cc"],
+     deps = ["@unicorn//:unicorn_x86"],

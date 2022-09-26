@@ -1,0 +1,10 @@
+--- BUILD	2022-09-24 22:49:40.328865735 -0500
++++ BUILD2	2022-09-24 22:49:35.552764858 -0500
+@@ -22,6 +22,7 @@
+ cc_binary(
+     name = "silifuzz_orchestrator_main",
+     srcs = ["silifuzz_orchestrator_main.cc"],
++    features = ["fully_static_link"],
+     deps = [
+         ":corpus_util",
+         ":result_collector",

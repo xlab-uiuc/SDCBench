@@ -9,6 +9,7 @@ import os
 import pathlib
 import multiprocessing
 from concurrent.futures import ProcessPoolExecutor
+import shutil
 
 parser = argparse.ArgumentParser(description='Transform centipede fuzz results to a silifuzz corpus')
 parser.add_argument('--fuzzing_results', type=str, help='Fuzzing result files regex (Default: corpus*)', default='corpus.*')
@@ -28,6 +29,8 @@ HASH_LEN = 40
 bin_dir = pathlib.Path(args.bin_dir).resolve()
 
 temp_dir = pathlib.Path(args.temp_dir)
+if temp_dir.exists():
+    shutil.rmtree(temp_dir)
 temp_dir.mkdir(exist_ok=True)
 
 fuzz_filter_tool = bin_dir / 'tools' / 'fuzz_filter_tool'
@@ -52,7 +55,8 @@ def process_input_data(data, hash_value):
         subprocess.check_output(f'{snap_tool} set_id {out_path} {data.hex()}', shell=True, stderr=subprocess.STDOUT)
     except subprocess.CalledProcessError as e:
         # If snapshot failed to generate, delete file if exists
-        out_path.unlink()
+        if out_path.exists():
+            out_path.unlink()
         return True
 
     return True
@@ -118,12 +122,14 @@ if __name__ == "__main__":
         print(f'Finished transforming {file}...')
 
     # Gather all the snapshots
-    files = ' '.join([str(f) for f in temp_dir.iterdir() if '.pb' in str(f)])
+    files = [str(f) for f in temp_dir.iterdir() if '.pb' in str(f)]
     if len(files) == 0:
         panic(f'Trying to generate corpus, but there are no snapshots created in {temp_dir}')
+    file_names = ' '.join(files)
 
     # Generate corpus from snapshots
-    o = subprocess.check_output(f'{snap_tool} generate_corpus {files}', shell=True, stderr=subprocess.PIPE)
+    o = subprocess.check_output([snap_tool, 'generate_corpus', *files], stderr=subprocess.PIPE)
+    #o = subprocess.check_output(f'{snap_tool} generate_corpus {file_names}', shell=True, stderr=subprocess.PIPE)
     with open(corpus_output, 'wb') as f:
         f.write(o)
 

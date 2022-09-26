@@ -1,0 +1,10 @@
+--- BUILD	2022-09-24 22:42:32.339676235 -0500
++++ BUILD2	2022-09-24 22:44:07.685755790 -0500
+@@ -32,6 +32,7 @@
+ cc_binary(
+     name = "centipede",
+     srcs = ["centipede_main.cc"],
++    features = ["fully_static_link"],
+     deps = [
+         ":centipede_default_callbacks",
+         ":centipede_interface",
