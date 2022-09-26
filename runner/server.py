@@ -61,7 +61,7 @@ def connect(sid, environ):
 @sio.event
 def disconnect(sid):
     ip = sid_to_ip[sid]
-    mac = sid_to_mac[sid]
+    mac = sid_to_mac.get(sid)
     print(f'[{sid}] Disconnect from {ip} {mac}')
 
     sids.remove(sid)
@@ -71,7 +71,8 @@ def disconnect(sid):
 
     if mac in mac_to_sid:
         del mac_to_sid[mac]
-    del sid_to_mac[sid]
+    if mac:
+        del sid_to_mac[sid]
 
 @sio.event
 def send_system_info(sid, data):
