@@ -55,8 +55,7 @@ def process_input_data(data, hash_value):
         subprocess.check_output(f'{snap_tool} set_id {out_path} {data.hex()}', shell=True, stderr=subprocess.STDOUT)
     except subprocess.CalledProcessError as e:
         # If snapshot failed to generate, delete file if exists
-        if out_path.exists():
-            out_path.unlink()
+        out_path.unlink(missing_ok=True)
         return True
 
     return True
