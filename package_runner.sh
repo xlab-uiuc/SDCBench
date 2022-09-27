@@ -9,6 +9,6 @@ rm -rf $RUNNER_TOOLS_DIR/tmp
 rm -rf $RUNNER_TOOLS_DIR/silifuzz_work_dir
 
 cd runner
-docker build --tag runner .
+docker build --network host --tag runner .
 docker save runner > ../runner.tar
 
