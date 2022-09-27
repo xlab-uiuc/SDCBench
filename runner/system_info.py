@@ -41,6 +41,10 @@ def get_system_info():
 
     system_information['cpuinfo'] = json.loads(cpuinfo.get_cpu_info_json())
 
+    with open('/etc/machine-id', 'r') as f:
+        data = f.read()
+        system_information['machine-id'] = data
+
     # Boot Time
     boot_time_timestamp = psutil.boot_time()
     bt = datetime.fromtimestamp(boot_time_timestamp)

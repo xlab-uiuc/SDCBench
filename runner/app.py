@@ -14,6 +14,8 @@ import time
 import io
 import base64
 import hashlib
+import json
+import datetime
 
 import system_info
 
@@ -35,6 +37,7 @@ class Command:
         self.command = command
         self.timeout = None
         self.update_timeout_func = update_timeout_func
+        self.iteration = 0
 
     def set_timeout(self, timeout):
         self.timeout = timeout
@@ -42,6 +45,7 @@ class Command:
     def update_command_with_timeout(self):
         if self.update_timeout_func:
             self.command = self.update_timeout_func(self.command, self.timeout)
+        self.iteration += 1
 
 class State:
     def __init__(self):
@@ -110,17 +114,26 @@ def format_bytes(o):
     o = o.replace("'", '"')
     return o
 
+def get_hash_file(filename):
+    h = hashlib.sha256()
+    with open(filename, 'rb') as file:
+        while True:
+            chunk = file.read(h.block_size)
+            if not chunk:
+                break
+            h.update(chunk)
+    return h.hexdigest()
+
 def run_command(command):
     p = None
     data = {}
     state.current_command = command
-    #print('running', command.command)
     try:
         p = subprocess.Popen(command.command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, preexec_fn=preexec_fn)
         state.process = p
         timeout = command.timeout
         if timeout is not None:
-            timeout += 1
+            timeout += 10.0
         stdout, stderr = p.communicate(timeout=timeout)
         data = {
             'status': 'success',
@@ -153,16 +166,7 @@ def run_command(command):
             'exception': str(e),
         }
     if command == state.silifuzz_command:
-        def get_hash_file(filename):
-            h = hashlib.sha256()
-            b = bytearray(128*1024)
-            mv = memoryview(b)
-            with open(filename, 'rb', buffering=0) as f:
-                while n := f.readinto(mv):
-                    h.update(mv[:n])
-            return h.hexdigest()
         data['hash'] = get_hash_file(args.silifuzz_corpus)
-    #print(data, command.command, state.cpu_check_command.command)
     state.current_command = None
     return data
 
@@ -181,8 +185,12 @@ def send_sio_message(key, value):
 def run_loop():
     while True:
         command = state.get_next_command()
-        state.last_executed_command_time = time.monotonic()
+        print(f'Current running: {command.command}')
+        state.last_executed_command_time = time.time()
+        start_date = datetime.datetime.now()
         data = run_command(command)
+        end_date = datetime.datetime.now()
+        execution_time = time.time() - state.last_executed_command_time
         # Manually killed process
         if state.current_process_killed:
             if data['status'] == 'success':
@@ -196,6 +204,17 @@ def run_loop():
                 state.commands.remove(state.dcdiag_command)
                 state.command_index = 0
         data['system_info'] = system_info.get_system_info()
+        data['total_iteration'] = state.iterations
+        data['execution_time'] = execution_time
+        
+        def format_date(date):
+            return date.strftime('%Y-%m-%d %H:%M:%S')
+        data['start_date'] = format_date(start_date)
+        data['end_date'] = format_date(end_date)
+        data['command_iteration'] = command.iteration
+
+        print(f'Finished running: {command.command}')
+        print(f'Returned : {json.dumps(data, indent=2)}')
         send_sio_message('command_completed', data)
 
 t = threading.Thread(target=run_loop, args=())
@@ -261,7 +280,7 @@ def transfer_from_request(data):
 
 @sio.event
 def query_progress_request(data):
-    time_diff = time.monotonic() - state.last_executed_command_time
+    time_diff = time.time() - state.last_executed_command_time
     j = {
         'iter': state.iterations,
         'command': state.last_executed_command,
@@ -275,7 +294,7 @@ def update_corpus_request(data):
     b64_data = data['b64_data']
     corpus = base64.b64decode(b64_data)
     j = {
-        'status': 'success'
+        'status': 'success',
     }
     try:
         # Stop if we are working on silifuzz
@@ -288,6 +307,7 @@ def update_corpus_request(data):
         # Update the corpus file
         with open(args.silifuzz_corpus, 'wb') as f:
             f.write(corpus)
+        j['hash'] = get_hash_file(args.silifuzz_corpus)
     except Exception as e:
         j = {
             'status': 'error',

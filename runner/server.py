@@ -77,7 +77,7 @@ def disconnect(sid):
 @sio.event
 def send_system_info(sid, data):
     system_info = data['system_info']
-    mac = system_info['System Information']['Mac-Address']
+    mac = system_info['System Information']['machine-id']
     mac_to_sid[mac] = sid
     sid_to_mac[sid] = mac
     
@@ -147,7 +147,7 @@ def query_progress_response(sid, data):
 @sio.event
 def update_corpus_response(sid, data):
     if data['status'] == 'success':
-        print(f'[{sid}] Updated corpus response successfully')
+        print(f'[{sid}] Updated corpus response successfully {data}')
     elif data['status'] == 'error':
         print(f'[{sid}] Updated corpus response error {data["error"]}')
 
@@ -217,7 +217,7 @@ class Shell(cmd2.Cmd):
             filename = args[1]
             sio.emit('transfer_from_request', {'filename': filename}, to=sid)
         else:
-            print(f'sid for address {remote_address} does not exist')
+            print(f'sid for address {mac} does not exist')
     
     @cmd2.with_argument_list
     def do_p(self, args):
@@ -308,9 +308,10 @@ def generate_silifuzz_corpus_worker():
         silifuzz_corpus_path_xz = f'{silifuzz_corpus_path}.xz'
         silifuzz_num_runs = 100000
         #silifuzz_num_runs = 1
-        p = subprocess.Popen(f'python3 tools/silifuzz_tools/generate_silifuzz_corpus.py --num_runs={silifuzz_num_runs} --corpus_output={silifuzz_corpus_path} --j={args.generate_silifuzz_corpus_threads} --corpus_save_dir="../../saved_corpus"', shell=True, cwd=os.getcwd())
-        p.communicate()
         try:
+            p = subprocess.Popen(f'python3 tools/silifuzz_tools/generate_silifuzz_corpus.py --num_runs={silifuzz_num_runs} --corpus_output={silifuzz_corpus_path} --j={args.generate_silifuzz_corpus_threads} --corpus_save_dir="../../saved_corpus"', shell=True, cwd=os.getcwd())
+            p.communicate()
+
             with open(silifuzz_corpus_path_xz, 'rb') as f:
                 data = f.read()
                 b64_data = base64.b64encode(data)
