@@ -53,19 +53,20 @@ corpus_save_dir.mkdir(exist_ok=True)
 
 def get_hash_file(filename):
     h = hashlib.sha256()
-    b = bytearray(128*1024)
-    mv = memoryview(b)
-    with open(filename, 'rb', buffering=0) as f:
-        while n := f.readinto(mv):
-            h.update(mv[:n])
+    with open(filename, 'rb') as file:
+        while True:
+            chunk = file.read(h.block_size)
+            if not chunk:
+                break
+            h.update(chunk)
     return h.hexdigest()
 
 try:
     subprocess.check_output(f'{centipede_bin} --binary={unicorn_bin} --workdir={work_dir} --num_runs={args.num_runs} --j={args.j}', shell=True, stderr=subprocess.STDOUT)
     subprocess.check_output(f'python {transform_centipede_fuzz_results_to_silifuzz_corpus} --fuzzing_results="{work_dir}/corpus.*" --bin_dir="{silifuzz_bin_dir}" --corpus_output="{corpus_output}"', shell=True, stderr=subprocess.STDOUT)
-    corpus_hash = get_hash_file(corpus_output)
+    corpus_hash = get_hash_file(f'{corpus_output}.xz')
     corpus_save_file = corpus_save_dir / f'{corpus_hash}.corpus.xz'
-    shutil.copy(corpus_output, corpus_save_file)
+    shutil.copy(f'{corpus_output}.xz', corpus_save_file)
 except Exception as e:
     panic(str(e))
 
