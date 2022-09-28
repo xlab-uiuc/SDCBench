@@ -29,76 +29,82 @@ docker_image_name = docker_image.name
 docker_image_name_stem = docker_image.stem
 
 if __name__ == '__main__':
-    with open(config_file, 'r') as f:
-        xml = f.read()
-        soup = bs4.BeautifulSoup(xml, 'lxml')
-        
-        async def run_on_node(conn):
-            async def run_command(command):
-                print(f'[{conn._host}] Running {command}...')
-                result = await conn.run(command, check=True)
-                print(f'[{conn._host}] Finished running {command}...')
-                return result.stdout
+    async def run_on_node(conn):
+        async def run_command(command):
+            print(f'[{conn._host}] Running {command}...')
+            result = await conn.run(command, check=True)
+            print(f'[{conn._host}] Finished running {command}...')
+            return result.stdout
 
-            stdout = await run_command(r'sudo apt update -y')
-            stdout = await run_command(r'sudo apt install -y docker.io')
-            print(f'[{conn._host}] Copying {docker_image}...')
-            def progress_handler(src_path, dst_path, bytes_uploaded, bytes_total):
-                print(f'[{conn._host}] Copying {docker_image}... {(bytes_uploaded / bytes_total) * 100:.2f}%')
-            if args.show_progress:
-                await asyncssh.scp(str(docker_image), (conn, docker_image_name), progress_handler=progress_handler)
+        stdout = await run_command(r'sudo apt update -y')
+        stdout = await run_command(r'sudo apt install -y docker.io')
+        print(f'[{conn._host}] Copying {docker_image}...')
+        def progress_handler(src_path, dst_path, bytes_uploaded, bytes_total):
+            print(f'[{conn._host}] Copying {docker_image}... {(bytes_uploaded / bytes_total) * 100:.2f}%')
+        if args.show_progress:
+            await asyncssh.scp(str(docker_image), (conn, docker_image_name), progress_handler=progress_handler)
+        else:
+            await asyncssh.scp(str(docker_image), (conn, docker_image_name))
+        #async with conn.start_sftp_client() as sftp:
+        #    await sftp.put(docker_image, docker_image, progress_handler=progress_handler)
+        print(f'[{conn._host}] Finished copying {docker_image}...')
+        stdout = await run_command(f'sudo docker load < {docker_image_name}')
+        stdout = await run_command(f'sudo docker ps')
+        for r in stdout.split('\n'):
+            if r is None:
+                continue
+            items = r.split(' ')
+            if items[0] == 'CONTAINER':
+                continue
             else:
-                await asyncssh.scp(str(docker_image), (conn, docker_image_name))
-            #async with conn.start_sftp_client() as sftp:
-            #    await sftp.put(docker_image, docker_image, progress_handler=progress_handler)
-            print(f'[{conn._host}] Finished copying {docker_image}...')
-            stdout = await run_command(f'sudo docker load < {docker_image_name}')
-            stdout = await run_command(f'sudo docker ps')
-            for r in stdout.split('\n'):
-                if r is None:
-                    continue
-                items = r.split(' ')
-                if items[0] == 'CONTAINER':
-                    continue
-                else:
-                    if len(items) > 5:
-                        container_id = items[0]
-                        await run_command(f'sudo docker kill {container_id}')
-            #run_remote_command_see_output(f'sudo docker run -e SDC_TIMEOUT={timeout} -e SDC_ENDPOINT={endpoint} {docker_image_name}')
-            # Run command with no security (hack for silifuzz to work to disable ALSR)
-            stdout = await run_command(f'sudo docker run -d -e SDC_TIMEOUT={timeout} -e SDC_ENDPOINT={endpoint} --cap-add=SYS_PTRACE --security-opt seccomp=unconfined {docker_image_name_stem}')
-            return True
-        
-        interfaces = list(soup.find_all('login'))
-        def get_ssh_endpoint(interface):
-            ssh_endpoint = f'{interface["username"]}@{interface["hostname"]}'
-            return ssh_endpoint
-        ssh_endpoints = [get_ssh_endpoint(interface) for interface in interfaces]
-        def get_username_hostname(interface):
-            username = interface['username']
-            hostname = interface['hostname']
-            return username, hostname
-        username_hostname = [get_username_hostname(interface) for interface in interfaces]
+                if len(items) > 5:
+                    container_id = items[0]
+                    await run_command(f'sudo docker kill {container_id}')
+        #run_remote_command_see_output(f'sudo docker run -e SDC_TIMEOUT={timeout} -e SDC_ENDPOINT={endpoint} {docker_image_name}')
+        # Run command with no security (hack for silifuzz to work to disable ALSR)
+        stdout = await run_command(f'sudo docker run -d -e SDC_TIMEOUT={timeout} -e SDC_ENDPOINT={endpoint} -v /etc/machine-id:/etc/machine-id --privileged --cap-add=SYS_PTRACE --security-opt seccomp=unconfined {docker_image_name_stem}')
+        return True
+    
+    async def run_client(username_hostname, p_key) -> asyncssh.SSHCompletedProcess:
+        username = username_hostname[0]
+        hostname = username_hostname[1]
+        async with asyncssh.connect(host=hostname, username=username, port=22, client_keys=[p_key], known_hosts=None) as conn:
+            r = await run_on_node(conn)
+            return r 
+
+    async def run_multiple_clients(username_hostname, p_key) -> None:
+        # Put your lists of hosts here
+        tasks = (run_client(u, p_key) for u in username_hostname)
+        #tasks = (run_client(u) for u in username_hostname[:1])
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        for i, result in enumerate(results, 1):
+            if isinstance(result, Exception):
+                print('Task %d failed: %s' % (i, str(result)))
+            else:
+                print(f'Task {i} Success')
+    
+    if '@' in config_file:
+        username_hostname = [config_file.split('@')]
         p_key = asyncssh.read_private_key(identity_file, identity_file_password)
+        asyncio.run(run_multiple_clients(username_hostname, p_key))
+    else:
+        with open(config_file, 'r') as f:
+            xml = f.read()
+            soup = bs4.BeautifulSoup(xml, 'lxml')
+            interfaces = list(soup.find_all('login'))
+            def get_ssh_endpoint(interface):
+                ssh_endpoint = f'{interface["username"]}@{interface["hostname"]}'
+                return ssh_endpoint
+            ssh_endpoints = [get_ssh_endpoint(interface) for interface in interfaces]
+            def get_username_hostname(interface):
+                username = interface['username']
+                hostname = interface['hostname']
+                return username, hostname
+            username_hostname = [get_username_hostname(interface) for interface in interfaces]
+            p_key = asyncssh.read_private_key(identity_file, identity_file_password)
+            asyncio.run(run_multiple_clients(username_hostname, p_key))
 
-        async def run_client(username_hostname) -> asyncssh.SSHCompletedProcess:
-            username = username_hostname[0]
-            hostname = username_hostname[1]
-            async with asyncssh.connect(host=hostname, username=username, port=22, client_keys=[p_key], known_hosts=None) as conn:
-                r = await run_on_node(conn)
-                return r 
 
-        async def run_multiple_clients() -> None:
-            # Put your lists of hosts here
-            tasks = (run_client(u) for u in username_hostname)
-            #tasks = (run_client(u) for u in username_hostname[:1])
-            results = await asyncio.gather(*tasks, return_exceptions=True)
 
-            for i, result in enumerate(results, 1):
-                if isinstance(result, Exception):
-                    print('Task %d failed: %s' % (i, str(result)))
-                else:
-                    print(f'Task {i} Success')
         
-        asyncio.run(run_multiple_clients())
-
