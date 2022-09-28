@@ -47,15 +47,32 @@ class Command:
             self.command = self.update_timeout_func(self.command, self.timeout)
         self.iteration += 1
 
+class Sleep(object):
+    def __init__(self, seconds, immediate=True):
+        self.seconds = seconds
+        self.event = threading.Event()
+        if immediate:
+            self.sleep()
+
+    def sleep(self, seconds=None):
+        if seconds is None:
+            seconds = self.seconds
+        self.event.clear()
+        self.event.wait(timeout=seconds)
+
+    def wake(self):
+        self.event.set()
+
 class State:
     def __init__(self):
         self.silifuzz_corpus = args.silifuzz_corpus
         
-        self.base_cpu_check_command = 'tools/cpu_check'
+        # Don't touch frequency, temperature, crashes in source code
+        self.base_cpu_check_command = ['tools/cpu_check', '-g']
         self.base_silifuzz_command = [f'{silifuzz_dir}/orchestrator/silifuzz_orchestrator_main', f'--runner={silifuzz_dir}/runner/reading_runner_main_nolibc', f'{self.silifuzz_corpus}']
         def update_cpu_check_timeout(command, timeout):
             if timeout != None:
-                command = [self.base_cpu_check_command, f'-t{timeout}']
+                command = [*self.base_cpu_check_command, f'-t{timeout}']
             else:
                 command = self.base_cpu_check_command
             return command
@@ -82,6 +99,9 @@ class State:
         self.process = None
         self.current_command = None
         self.current_process_killed = False
+        self.run_time_of_day_start = None
+        self.run_time_of_day_end = None
+        self.sleep = None
     
     def get_command(self):
         return self.commands[self.command_index]
@@ -181,9 +201,30 @@ def send_sio_message(key, value):
             time.sleep(1.0)
             continue
 
-
 def run_loop():
     while True:
+        while state.run_time_of_day_start is not None and state.run_time_of_day_end is not None:
+            date = datetime.datetime.now()
+            if date.hour >= state.run_time_of_day_start and date.hour < state.run_time_of_day_end:
+                diff_in_seconds = (state.run_time_of_day_end - state.run_time_of_day_start) * 60 * 60
+                print(f'Sleeping from {state.run_time_of_day_start} to {state.run_time_of_day_end}... Current {date.hour}')
+                state.sleep = Sleep(diff_in_seconds, immediate=False)
+                state.sleep.sleep()
+            elif state.run_time_of_day_start > state.run_time_of_day_end:
+                run_time_of_day_end = state.run_time_of_day_end + 24
+                next_hour = date.hour + 24
+                print(date.hour, state.run_time_of_day_start, run_time_of_day_end)
+                if (date.hour >= state.run_time_of_day_start and date.hour < run_time_of_day_end) or \
+                    (next_hour >= state.run_time_of_day_start and next_hour < run_time_of_day_end):
+                    diff_in_seconds = (run_time_of_day_end - state.run_time_of_day_start) * 60 * 60
+                    print(f'Sleeping from {state.run_time_of_day_start} to {state.run_time_of_day_end}... Current {date.hour}')
+                    state.sleep = Sleep(diff_in_seconds, immediate=False)
+                    state.sleep.sleep()
+                else:
+                    break
+            else:
+                break
+
         command = state.get_next_command()
         print(f'Current running: {command.command}')
         state.last_executed_command_time = time.time()
@@ -314,6 +355,21 @@ def update_corpus_request(data):
             'error': str(e),
         }
     send_sio_message('update_corpus_response', j)
+
+@sio.event
+def update_run_time_of_day_request(data):
+    old_run_time_of_day_start = state.run_time_of_day_start
+    old_run_time_of_day_end = state.run_time_of_day_end
+    state.run_time_of_day_start = data['start']
+    state.run_time_of_day_end = data['end']
+    print(f'Updated run time of day {state.run_time_of_day_start}..{state.run_time_of_day_end}')
+    if state.sleep is not None:
+        print(f'Waking up from existing sleep from {old_run_time_of_day_start}..{old_run_time_of_day_end}')
+        state.sleep.wake()
+    j = {
+        'status': 'success'
+    }
+    send_sio_message('update_run_time_of_day_response', j)
 
 @sio.event
 def update_timeout_request(data):

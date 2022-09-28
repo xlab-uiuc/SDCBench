@@ -11,6 +11,7 @@ import argparse
 import cmd2
 import subprocess
 import os
+import re
 
 import socketio
 from tqdm import tqdm
@@ -158,6 +159,12 @@ def update_timeout_response(sid, data):
     elif data['status'] == 'error':
         print(f'[{sid}] Updated timeout response error {data["error"]}')
 
+@sio.event
+def update_run_time_of_day_response(sid, data):
+    if data['status'] == 'success':
+        print(f'[{sid}] Updated run time of day response successfully')
+
+
 class Shell(cmd2.Cmd):
     intro = 'Welcome to SDCBench server'
     prompt = '(SDCBench)'
@@ -266,7 +273,15 @@ class Shell(cmd2.Cmd):
                     t.set_description(f'[{sid}] [{ip}] [{mac}] Iteration {p["iter"]}: {" ".join(p["command"])}')
                     t.clear()
                     t.refresh()
-            
+    
+    
+    parser = cmd2.Cmd2ArgumentParser()
+    @cmd2.with_argparser(parser)
+    def do_l(self, args):
+        for sid, mac in sid_to_mac.items():
+            ip = sid_to_ip.get(sid)
+            print(f'SID [{sid}] MAC [{mac}] IP [{ip}]')
+
     parser = cmd2.Cmd2ArgumentParser()
     parser.add_argument('filename')
     @cmd2.with_argparser(parser)
@@ -299,6 +314,26 @@ class Shell(cmd2.Cmd):
                 'silifuzz': state.silifuzz_timeout,
             }
             sio.emit('update_timeout_request', j)
+        except Exception as e:
+            print(e)
+
+    parser = cmd2.Cmd2ArgumentParser()
+    parser.add_argument('regex', type=str)
+    parser.add_argument('start', type=int)
+    parser.add_argument('end', type=int)
+    @cmd2.with_argparser(parser)
+    def do_update_time_of_day(self, args):
+        send_tos = []
+        for sid, mac in sid_to_mac.items():
+            if re.match(args.regex, mac):
+                send_tos.append(sid)
+        try:
+            j = {
+                'start': args.start,
+                'end': args.end,
+            }
+            for sid in send_tos:
+                sio.emit('update_run_time_of_day_request', j, to=sid)
         except Exception as e:
             print(e)
 
