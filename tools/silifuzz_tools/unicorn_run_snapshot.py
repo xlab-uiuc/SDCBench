@@ -5,13 +5,18 @@ from unicorn import *
 from unicorn.x86_const import *
 from capstone import *
 import struct
+import argparse
 
 import snapshot_pb2
 
 from google.protobuf.json_format import MessageToDict
 
+parser = argparse.ArgumentParser(description='Emulate silifuzz protobuf')
+parser.add_argument('--snapshot_protobuf', type=str, help='Protobuf file', default='test.pb')
+args = parser.parse_args()
+
 snapshot = snapshot_pb2.Snapshot()
-with open('test.pb', 'rb') as f:
+with open(args.snapshot_protobuf, 'rb') as f:
     snapshot.ParseFromString(f.read())
     json_obj = MessageToDict(snapshot)
     #print(json_obj)
