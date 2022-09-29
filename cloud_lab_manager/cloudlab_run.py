@@ -31,11 +31,21 @@ docker_image_name_stem = docker_image.stem
 if __name__ == '__main__':
     async def run_on_node(conn):
         async def run_command(command):
+            if args.identity_file == '':
+                args.identity_file_password
+                if 'sudo' == command[:4]:
+                    rest_of_command = command[4:]
+                    command = f'echo "{args.identity_file_password}" | sudo -S sh -c "{rest_of_command}"'
+
             print(f'[{conn._host}] Running {command}...')
             result = await conn.run(command, check=True)
             print(f'[{conn._host}] Finished running {command}...')
             return result.stdout
 
+        #if args.identity_file == '':
+        #    username = conn.get_extra_info('username')
+        #    stdout = await run_command(f'echo "{args.identity_file_password}" | sudo -S adduser {username} sudo')
+            
         stdout = await run_command(r'sudo apt update -y')
         stdout = await run_command(r'sudo apt install -y docker.io')
         print(f'[{conn._host}] Copying {docker_image}...')
@@ -68,7 +78,10 @@ if __name__ == '__main__':
     async def run_client(username_hostname, p_key) -> asyncssh.SSHCompletedProcess:
         username = username_hostname[0]
         hostname = username_hostname[1]
-        async with asyncssh.connect(host=hostname, username=username, port=22, client_keys=[p_key], known_hosts=None) as conn:
+        keys = []
+        if p_key:
+            keys = [p_key]
+        async with asyncssh.connect(host=hostname, username=username, port=22, client_keys=keys, known_hosts=None, password=args.identity_file_password) as conn:
             r = await run_on_node(conn)
             return r 
 
@@ -86,7 +99,9 @@ if __name__ == '__main__':
     
     if '@' in config_file:
         username_hostname = [config_file.split('@')]
-        p_key = asyncssh.read_private_key(identity_file, identity_file_password)
+        p_key = None
+        if identity_file != '':
+            p_key = asyncssh.read_private_key(identity_file, identity_file_password)
         asyncio.run(run_multiple_clients(username_hostname, p_key))
     else:
         with open(config_file, 'r') as f:
@@ -102,7 +117,9 @@ if __name__ == '__main__':
                 hostname = interface['hostname']
                 return username, hostname
             username_hostname = [get_username_hostname(interface) for interface in interfaces]
-            p_key = asyncssh.read_private_key(identity_file, identity_file_password)
+            p_key = None
+            if identity_file != '':
+                p_key = asyncssh.read_private_key(identity_file, identity_file_password)
             asyncio.run(run_multiple_clients(username_hostname, p_key))
 
 
