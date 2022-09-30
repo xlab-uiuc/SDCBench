@@ -47,7 +47,7 @@ if __name__ == '__main__':
         #    stdout = await run_command(f'echo "{args.identity_file_password}" | sudo -S adduser {username} sudo')
             
         stdout = await run_command(r'sudo apt update -y')
-        stdout = await run_command(r'sudo apt install -y docker.io')
+        stdout = await run_command(r'sudo apt install -y containerd docker.io')
         print(f'[{conn._host}] Copying {docker_image}...')
         def progress_handler(src_path, dst_path, bytes_uploaded, bytes_total):
             print(f'[{conn._host}] Copying {docker_image}... {(bytes_uploaded / bytes_total) * 100:.2f}%')
