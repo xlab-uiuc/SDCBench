@@ -339,11 +339,13 @@ def update_corpus_request(data):
     }
     try:
         # Stop if we are working on silifuzz
+        '''
         if state.current_command == state.silifuzz_command:
             while state.process and not state.process.poll():
                 state.current_process_killed = True
                 state.process.kill()
                 time.sleep(1)
+        '''
 
         # Update the corpus file
         with open(args.silifuzz_corpus, 'wb') as f:
@@ -387,10 +389,12 @@ def update_timeout_request(data):
                 c.set_timeout(dcdiag_timeout)
             elif c == state.silifuzz_command:
                 c.set_timeout(silifuzz_timeout)
+        '''
         while state.process and not state.process.poll():
             state.current_process_killed = True
             state.process.kill()
             time.sleep(1)
+        '''
     except Exception as e:
         j = {
             'status': 'error',
