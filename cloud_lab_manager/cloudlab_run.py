@@ -48,17 +48,6 @@ if __name__ == '__main__':
             
         stdout = await run_command(r'sudo apt update -y')
         stdout = await run_command(r'sudo apt install -y containerd docker.io')
-        print(f'[{conn._host}] Copying {docker_image}...')
-        def progress_handler(src_path, dst_path, bytes_uploaded, bytes_total):
-            print(f'[{conn._host}] Copying {docker_image}... {(bytes_uploaded / bytes_total) * 100:.2f}%')
-        if args.show_progress:
-            await asyncssh.scp(str(docker_image), (conn, docker_image_name), progress_handler=progress_handler)
-        else:
-            await asyncssh.scp(str(docker_image), (conn, docker_image_name))
-        #async with conn.start_sftp_client() as sftp:
-        #    await sftp.put(docker_image, docker_image, progress_handler=progress_handler)
-        print(f'[{conn._host}] Finished copying {docker_image}...')
-        stdout = await run_command(f'sudo docker load < {docker_image_name}')
         stdout = await run_command(f'sudo docker ps')
         for r in stdout.split('\n'):
             if r is None:
@@ -70,9 +59,21 @@ if __name__ == '__main__':
                 if len(items) > 5:
                     container_id = items[0]
                     await run_command(f'sudo docker kill {container_id}')
+
+        print(f'[{conn._host}] Copying {docker_image}...')
+        def progress_handler(src_path, dst_path, bytes_uploaded, bytes_total):
+            print(f'[{conn._host}] Copying {docker_image}... {(bytes_uploaded / bytes_total) * 100:.2f}%')
+        if args.show_progress:
+            await asyncssh.scp(str(docker_image), (conn, docker_image_name), progress_handler=progress_handler)
+        else:
+            await asyncssh.scp(str(docker_image), (conn, docker_image_name))
+        #async with conn.start_sftp_client() as sftp:
+        #    await sftp.put(docker_image, docker_image, progress_handler=progress_handler)
+        print(f'[{conn._host}] Finished copying {docker_image}...')
+        stdout = await run_command(f'sudo docker load < {docker_image_name}')
         #run_remote_command_see_output(f'sudo docker run -e SDC_TIMEOUT={timeout} -e SDC_ENDPOINT={endpoint} {docker_image_name}')
         # Run command with no security (hack for silifuzz to work to disable ALSR)
-        stdout = await run_command(f'sudo docker run -d -e SDC_TIMEOUT={timeout} -e SDC_ENDPOINT={endpoint} -v /etc/machine-id:/etc/machine-id --privileged --cap-add=SYS_PTRACE --security-opt seccomp=unconfined {docker_image_name_stem}')
+        stdout = await run_command(f'sudo docker run -d --log-opt max-size=100m -e SDC_TIMEOUT={timeout} -e SDC_ENDPOINT={endpoint} -v /etc/machine-id:/etc/machine-id --privileged --cap-add=SYS_PTRACE --security-opt seccomp=unconfined {docker_image_name_stem}')
         return True
     
     async def run_client(username_hostname, p_key) -> asyncssh.SSHCompletedProcess:
