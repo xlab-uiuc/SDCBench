@@ -1,6 +1,6 @@
 #!/bin/bash
 
-COMMIT="74ae11176898634de558b8ffe52087727bdf15c8"
+#COMMIT="74ae11176898634de558b8ffe52087727bdf15c8"
 
 rm -rf silifuzz
 
@@ -17,7 +17,7 @@ fi
 
 git clone https://github.com/google/silifuzz.git
 cd silifuzz
-git checkout $COMMIT
+#git checkout $COMMIT
 SILIFUZZ_SRC_DIR=`pwd`
 
 #patch -u orchestrator/BUILD -i $SILIFUZZ_ORCHESTRATOR_BUILD_PATCH
