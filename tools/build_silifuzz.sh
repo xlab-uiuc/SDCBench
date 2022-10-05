@@ -31,9 +31,11 @@ bazel build -c opt @silifuzz//tools:snap_corpus_tool
 bazel build -c opt @silifuzz//tools:fuzz_filter_tool
 bazel build -c opt @silifuzz//tools:snap_tool
 bazel build -c opt @silifuzz//tools:silifuzz_platform_id
+bazel build -c opt @silifuzz//tools:simple_fix_tool
 bazel build -c opt @silifuzz//proxies:unicorn_x86_64_sancov
 bazel build -c opt @silifuzz//runner:reading_runner_main_nolibc
 bazel build -c opt @silifuzz//orchestrator:silifuzz_orchestrator_main
+
 SILIFUZZ_BIN_DIR=`pwd`/bazel-bin/
 cd "${SILIFUZZ_BIN_DIR}"
 
