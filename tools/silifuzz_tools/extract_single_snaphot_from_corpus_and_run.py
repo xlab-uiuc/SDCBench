@@ -124,6 +124,9 @@ else:
 
     cs = Cs(CS_ARCH_X86, CS_MODE_64)
     instruction_count = 0
+
+    print(r'\x'.join([f'{b:02X}' for b in snapshot_bytes]))
+
     for i in cs.disasm(snapshot_bytes, rip):
         print("0x%x:\t%s\t%s" % (i.address, i.mnemonic, i.op_str))
         instruction_count += 1
