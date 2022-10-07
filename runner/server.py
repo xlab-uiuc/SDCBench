@@ -35,9 +35,9 @@ sid_to_mac = {}
 
 class State:
     def __init__(self):
-        self.cpu_check_timeout = 60 * 15
-        self.dcdiag_timeout = 60 * 15
-        self.silifuzz_timeout = 60 * 60 * 1
+        self.cpu_check_timeout = 60 * 5
+        self.dcdiag_timeout = 60 * 5
+        self.silifuzz_timeout = 60 * 15 * 1
 
 state = State()
 
@@ -341,8 +341,8 @@ def generate_silifuzz_corpus_worker():
     while args.generate_silifuzz_corpus:
         silifuzz_corpus_path = 'tools/silifuzz.corpus'
         silifuzz_corpus_path_xz = f'{silifuzz_corpus_path}.xz'
-        silifuzz_num_runs = 100000
-        #silifuzz_num_runs = 1
+        silifuzz_num_runs = 10000
+        #silifuzz_num_runs = 1000
         try:
             p = subprocess.Popen(f'python3 tools/silifuzz_tools/generate_silifuzz_corpus.py --num_runs={silifuzz_num_runs} --corpus_output={silifuzz_corpus_path} --j={args.generate_silifuzz_corpus_threads} --corpus_save_dir="../../saved_corpus"', shell=True, cwd=os.getcwd())
             p.communicate()
