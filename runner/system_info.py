@@ -10,7 +10,9 @@ import socket
 import uuid
 import re
 from collections import defaultdict
+import urllib.request
 
+external_ip = urllib.request.urlopen('https://api.ipify.org').read().decode('utf8')
 
 def get_size(bytes, suffix="B"):
     """
@@ -36,7 +38,7 @@ def get_system_info():
     system_information['Machine'] = f"{uname.machine}"
     system_information['Processor'] = f"{uname.processor}"
     system_information['Processor'] = f"{cpuinfo.get_cpu_info()['brand_raw']}"
-    system_information['Ip-Address'] = f"{socket.gethostbyname(socket.gethostname())}"
+    system_information['Ip-Address'] = f"{external_ip}"
     system_information['Mac-Address'] = f"{':'.join(re.findall('..', '%012x' % uuid.getnode()))}"
 
     system_information['cpuinfo'] = json.loads(cpuinfo.get_cpu_info_json())
