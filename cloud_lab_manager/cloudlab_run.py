@@ -38,27 +38,35 @@ if __name__ == '__main__':
                     command = f'echo "{args.identity_file_password}" | sudo -S sh -c "{rest_of_command}"'
 
             print(f'[{conn._host}] Running {command}...')
-            result = await conn.run(command, check=True)
+            try:
+                result = await conn.run(command, check=True)
+            except Exception as e:
+                print(f'[{conn._host}] Got exception running {command}')
+                raise e
             print(f'[{conn._host}] Finished running {command}...')
             return result.stdout
 
         #if args.identity_file == '':
         #    username = conn.get_extra_info('username')
         #    stdout = await run_command(f'echo "{args.identity_file_password}" | sudo -S adduser {username} sudo')
+        if False:
+            stdout = await run_command(f'cat /etc/machine-id && curl "https://api.ipify.org?format=json" && uname -n && cat /proc/cpuinfo')
+            print(stdout)
+            return True;
             
-        stdout = await run_command(r'sudo apt update -y')
-        stdout = await run_command(r'sudo apt install -y containerd docker.io')
-        stdout = await run_command(f'sudo docker ps')
+        stdout = await run_command(f'sudo docker ps -q')
         for r in stdout.split('\n'):
             if r is None:
                 continue
-            items = r.split(' ')
-            if items[0] == 'CONTAINER':
+            try:
+                test = int(r, 16)
+            except:
                 continue
-            else:
-                if len(items) > 5:
-                    container_id = items[0]
-                    await run_command(f'sudo docker kill {container_id}')
+            container_id = r
+            await run_command(f'sudo docker stop {container_id}')
+            await run_command(f'sudo docker rm {container_id}')
+        stdout = await run_command(r'sudo apt update -y')
+        stdout = await run_command(r'sudo apt install -y containerd docker.io')
 
         print(f'[{conn._host}] Copying {docker_image}...')
         def progress_handler(src_path, dst_path, bytes_uploaded, bytes_total):
