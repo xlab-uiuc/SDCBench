@@ -87,10 +87,11 @@ class State:
             return command
 
         self.cpu_check_command = Command(self.base_cpu_check_command, update_cpu_check_timeout)
-        self.dcdiag_command = Command(base_dcdiag_command, update_dcdiag_timeout) 
+        self.dcdiag_command = Command(self.base_dcdiag_command, update_dcdiag_timeout) 
         self.silifuzz_command = Command(self.base_silifuzz_command, update_silifuzz_timeout)
 
-        self.commands = [self.cpu_check_command, self.dcdiag_command, self.silifuzz_command]
+        #self.commands = [self.cpu_check_command, self.dcdiag_command, self.silifuzz_command]
+        self.commands = [self.silifuzz_command]
         [c.set_timeout(args.default_timeout) for c in self.commands]
         self.command_index = random.randint(0, len(self.commands) - 1)
         self.last_executed_command = ''
@@ -150,7 +151,7 @@ def run_command(command):
     data = {}
     state.current_command = command
     try:
-        p = subprocess.Popen(command.command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, preexec_fn=preexec_fn)
+        p = subprocess.Popen(command.command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)#, preexec_fn=preexec_fn)
         state.process = p
         timeout = command.timeout
         if timeout is not None:
