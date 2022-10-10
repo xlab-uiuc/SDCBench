@@ -68,8 +68,9 @@ class State:
         self.silifuzz_corpus = args.silifuzz_corpus
         
         # Don't touch frequency, temperature, crashes in source code
-        self.base_cpu_check_command = ['tools/cpu_check', '-g']
-        self.base_silifuzz_command = [f'{silifuzz_dir}/orchestrator/silifuzz_orchestrator_main', f'--runner={silifuzz_dir}/runner/reading_runner_main_nolibc', f'{self.silifuzz_corpus}']
+        self.base_cpu_check_command = ['stdbuf', '-oL', 'tools/cpu_check', '-g']
+        self.base_dcdiag_command = ['stdbuf', '-oL', 'tools/dcdiag']
+        self.base_silifuzz_command = ['stdbuf', '-oL', f'{silifuzz_dir}/orchestrator/silifuzz_orchestrator_main', f'--runner={silifuzz_dir}/runner/reading_runner_main_nolibc', f'{self.silifuzz_corpus}']
         def update_cpu_check_timeout(command, timeout):
             if timeout != None:
                 command = [*self.base_cpu_check_command, f'-t{timeout}']
@@ -86,7 +87,7 @@ class State:
             return command
 
         self.cpu_check_command = Command(self.base_cpu_check_command, update_cpu_check_timeout)
-        self.dcdiag_command = Command('tools/dcdiag', update_dcdiag_timeout) 
+        self.dcdiag_command = Command(base_dcdiag_command, update_dcdiag_timeout) 
         self.silifuzz_command = Command(self.base_silifuzz_command, update_silifuzz_timeout)
 
         self.commands = [self.cpu_check_command, self.dcdiag_command, self.silifuzz_command]
